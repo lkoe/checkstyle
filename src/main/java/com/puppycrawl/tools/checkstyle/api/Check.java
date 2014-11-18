@@ -96,7 +96,7 @@ public abstract class Check extends AbstractViolationReporter
      * Adds a set of tokens the check is interested in.
      * @param aStrRep the string representation of the tokens interested in
      */
-    public final void setTokens(String[] aStrRep)
+    public void setTokens(String[] aStrRep)
     {
         for (final String s : aStrRep) {
             mTokens.add(s);

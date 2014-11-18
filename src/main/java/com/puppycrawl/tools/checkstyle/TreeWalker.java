@@ -38,9 +38,11 @@ import antlr.TokenStreamException;
 import antlr.TokenStreamHiddenTokenFilter;
 import antlr.TokenStreamRecognitionException;
 
+import com.google.common.collect.ArrayTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
 import com.puppycrawl.tools.checkstyle.api.AbstractFileSetCheck;
 import com.puppycrawl.tools.checkstyle.api.Check;
 import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
@@ -316,7 +318,7 @@ public final class TreeWalker
             }
         }
         else {
-            tokens = aCheck.getDefaultTokens();
+            tokens = Ints.concat(aCheck.getRequiredTokens(), aCheck.getDefaultTokens());
         }
         for (int element : tokens) {
             registerCheck(element, aCheck);

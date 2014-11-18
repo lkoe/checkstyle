@@ -20,4 +20,6 @@
 /**
  * Contains the Javadoc checks that are bundled with the main distribution.
  */
+@com.puppycrawl.tools.checkstyle.api.metadata.ModuleGroup(order = 800)
 package com.puppycrawl.tools.checkstyle.checks.javadoc;
+

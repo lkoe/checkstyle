@@ -18,10 +18,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 package com.puppycrawl.tools.checkstyle.checks.javadoc;
 
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import antlr.collections.AST;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.puppycrawl.tools.checkstyle.TreeWalker;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FileContents;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
@@ -31,17 +40,17 @@ import com.puppycrawl.tools.checkstyle.api.ScopeUtils;
 import com.puppycrawl.tools.checkstyle.api.TextBlock;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import com.puppycrawl.tools.checkstyle.api.Utils;
+import com.puppycrawl.tools.checkstyle.api.metadata.BooleanProperty;
+import com.puppycrawl.tools.checkstyle.api.metadata.IntegerProperty;
+import com.puppycrawl.tools.checkstyle.api.metadata.MessageKey;
+import com.puppycrawl.tools.checkstyle.api.metadata.MessageProducer;
+import com.puppycrawl.tools.checkstyle.api.metadata.Module;
+import com.puppycrawl.tools.checkstyle.api.metadata.RequiredTokens;
+import com.puppycrawl.tools.checkstyle.api.metadata.SingleOptionProperty;
+import com.puppycrawl.tools.checkstyle.api.metadata.StringArrayProperty;
+import com.puppycrawl.tools.checkstyle.api.metadata.TokenProperty;
 import com.puppycrawl.tools.checkstyle.checks.AbstractTypeAwareCheck;
 import com.puppycrawl.tools.checkstyle.checks.CheckUtils;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Checks the Javadoc of a method or constructor.
@@ -51,8 +60,25 @@ import java.util.regex.Pattern;
  * @author o_sukhodoslky
  */
 @SuppressWarnings("deprecation")
+@Module(parentModule = TreeWalker.class)
+@MessageProducer
+@RequiredTokens(requiredTokens = {TokenTypes.PACKAGE_DEF, TokenTypes.IMPORT, TokenTypes.CLASS_DEF,
+        TokenTypes.INTERFACE_DEF, TokenTypes.ENUM_DEF})
 public class JavadocMethodCheck extends AbstractTypeAwareCheck
 {
+
+    @MessageKey
+    private static final String MSG_JAVADOC_UNUSED_TAG_GENERAL = "javadoc.unusedTagGeneral";
+
+    @MessageKey
+    private static final String MSG_JAVADOC_RETURN_EXPECTED = "javadoc.return.expected";
+
+    @MessageKey
+    private static final String MSG_JAVADOC_DUPLICATE_TAG = "javadoc.duplicateTag";
+
+    @MessageKey
+    private static final String MSG_JAVADOC_MISSING = "javadoc.missing";
+
     /** compiled regexp to match Javadoc tags that take an argument * */
     private static final Pattern MATCH_JAVADOC_ARG =
         Utils.createPattern("@(throws|exception|param)\\s+(\\S+)\\s+\\S*");
@@ -165,6 +191,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      * Sets minimal amount of lines in method.
      * @param aValue user's value.
      */
+    @IntegerProperty(defaultValue = -1)
     public void setMinLineCount(int aValue)
     {
         mMinLineCount = aValue;
@@ -174,6 +201,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      * Allow validating throws tag.
      * @param aValue user's value.
      */
+    @BooleanProperty(defaultValue = false)
     public void setValidateThrows(boolean aValue)
     {
         mValidateThrows = aValue;
@@ -183,13 +211,10 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      * Sets list of annotations.
      * @param aAnnotations user's value.
      */
-    public void setAllowedAnnotations(String aAnnotations)
+    @StringArrayProperty(defaultValue = { "Override" })
+    public void setAllowedAnnotations(String[] aAnnotations)
     {
-        final List<String> annotations = new ArrayList<String>();
-        for (String annotation : aAnnotations.split(", ")) {
-            annotations.add(annotation);
-        }
-        mAllowedAnnotations = annotations;
+        mAllowedAnnotations = Arrays.asList(aAnnotations);
     }
 
     /**
@@ -197,6 +222,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFrom a <code>String</code> value
      */
+    @SingleOptionProperty(enumClass=Scope.class, defaultValue = "PRIVATE")
     public void setScope(String aFrom)
     {
         mScope = Scope.getInstance(aFrom);
@@ -207,6 +233,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aScope a <code>String</code> value
      */
+    @SingleOptionProperty(enumClass=Scope.class, defaultValue = "")
     public void setExcludeScope(String aScope)
     {
         mExcludeScope = Scope.getInstance(aScope);
@@ -218,6 +245,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowUndeclaredRTE(boolean aFlag)
     {
         mAllowUndeclaredRTE = aFlag;
@@ -229,6 +257,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowThrowsTagsForSubclasses(boolean aFlag)
     {
         mAllowThrowsTagsForSubclasses = aFlag;
@@ -240,6 +269,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowMissingParamTags(boolean aFlag)
     {
         mAllowMissingParamTags = aFlag;
@@ -252,6 +282,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowMissingThrowsTags(boolean aFlag)
     {
         mAllowMissingThrowsTags = aFlag;
@@ -263,6 +294,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowMissingReturnTag(boolean aFlag)
     {
         mAllowMissingReturnTag = aFlag;
@@ -274,6 +306,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowMissingJavadoc(boolean aFlag)
     {
         mAllowMissingJavadoc = aFlag;
@@ -285,18 +318,25 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
      *
      * @param aFlag a <code>Boolean</code> value
      */
+    @BooleanProperty(defaultValue = false)
     public void setAllowMissingPropertyJavadoc(final boolean aFlag)
     {
         mAllowMissingPropertyJavadoc = aFlag;
     }
 
+
+    @Override
+    @TokenProperty(acceptableTokens = {TokenTypes.METHOD_DEF, TokenTypes.CTOR_DEF, TokenTypes.ANNOTATION_FIELD_DEF} ,
+        defaultTokens= {TokenTypes.METHOD_DEF, TokenTypes.CTOR_DEF, TokenTypes.ANNOTATION_FIELD_DEF})
+    public void setTokens(String[] aStrRep) {
+        super.setTokens(aStrRep);
+    }
+
+
     @Override
     public int[] getDefaultTokens()
     {
-        return new int[] {TokenTypes.PACKAGE_DEF, TokenTypes.IMPORT,
-                          TokenTypes.CLASS_DEF, TokenTypes.ENUM_DEF,
-                          TokenTypes.INTERFACE_DEF,
-                          TokenTypes.METHOD_DEF, TokenTypes.CTOR_DEF,
+        return new int[] {TokenTypes.METHOD_DEF, TokenTypes.CTOR_DEF,
                           TokenTypes.ANNOTATION_FIELD_DEF,
         };
     }
@@ -331,7 +371,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
 
             if (cmt == null) {
                 if (!isMissingJavadocAllowed(aAST)) {
-                    log(aAST, "javadoc.missing");
+                    log(aAST, MSG_JAVADOC_MISSING);
                 }
             }
             else {
@@ -481,7 +521,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
         while (it.hasNext()) {
             final JavadocTag jt = it.next();
             if (!jt.isSeeOrInheritDocTag()) {
-                log(jt.getLineNo(), "javadoc.unusedTagGeneral");
+                log(jt.getLineNo(), MSG_JAVADOC_UNUSED_TAG_GENERAL);
             }
         }
     }
@@ -809,7 +849,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
             if (jt.isReturnTag()) {
                 if (found) {
                     log(jt.getLineNo(), jt.getColumnNo(),
-                        "javadoc.duplicateTag",
+                        MSG_JAVADOC_DUPLICATE_TAG,
                         JavadocTagInfo.RETURN.getText());
                 }
                 found = true;
@@ -820,7 +860,7 @@ public class JavadocMethodCheck extends AbstractTypeAwareCheck
         // Handle there being no @return tags :- unless
         // the user has chosen to suppress these problems
         if (!found && !mAllowMissingReturnTag && aReportExpectedTags) {
-            log(aLineNo, "javadoc.return.expected");
+            log(aLineNo, MSG_JAVADOC_RETURN_EXPECTED);
         }
     }
 
